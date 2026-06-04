@@ -17,22 +17,34 @@
 
 ## 跑起来很直接
 
-依赖 `Python 3.10+` 和 `pygame`。仓库已附带 `CHICAGO.TTF`，正常情况下不需要额外准备字体。
+- Python `3.10+`
+- 能正常显示桌面窗口的运行环境
+- 仓库已附带 `CHICAGO.TTF`，正常情况下不需要额外准备字体
+
+下面的示例默认按 `python3` 来写；如果你的系统里没有这个命令，也可以改用 `python`，Windows 下通常可以用 `py -3`。
+
+最短路径只需要两条命令：
 
 ```bash
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
+python3 tetris.py
+```
+
+如果你习惯先创建虚拟环境，在 macOS / Linux 上可以这样跑：
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 python tetris.py
 ```
 
-> 如果 `python` 找不到，试试 `python3`；Windows 下也可以 `py -3`。
+如果你在 Windows PowerShell 下，写法是这样：
 
-习惯先建虚拟环境的话：
-
-```bash
-python -m venv .venv
-source .venv/bin/activate          # macOS / Linux
-# .venv\Scripts\Activate.ps1        # Windows PowerShell
-pip install -r requirements.txt
+```powershell
+py -3 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 python tetris.py
 ```
 
@@ -62,27 +74,36 @@ python tetris.py
 ## 目录里有什么
 
 ```text
-tetris.py              入口：TetrisGame 把事件循环、渲染和规则调度到一起
-tetris_core.py         规则引擎：GameplayEngine — 棋盘状态、方块生成、旋转、消行、计分、掉落时序
-tetris_ui.py           界面渲染：TetrisUI — 窗口外壳、棋盘、方块、预览区、信息栏和状态提示
-tetris_ui_config.py    配置：布局常量、配色、字体路径和按键绑定
-tetris_ui_helpers.py   辅助：几何计算和一些无状态的界面工具函数
-requirements.txt       依赖清单
-CHICAGO.TTF            界面字体
-screenshot.png         截图
-LICENSE                MIT 许可证
+.
+├── tetris.py
+├── tetris_core.py
+├── tetris_ui.py
+├── tetris_ui_config.py
+├── tetris_ui_helpers.py
+├── requirements.txt
+├── CHICAGO.TTF
+├── screenshot.png
+├── LICENSE
+└── README.md
 ```
 
-程序入口在 `main()`，最终由 `TetrisGame.run()` 启动主循环。
+## 代码怎么分工
+
+- `GameplayEngine` 负责规则：棋盘状态、方块生成、SRS 旋转与踢墙、消行、计分、掉落时序。
+- `TetrisUI` 负责界面：窗口外壳、棋盘、方块、预览区、信息栏和状态提示。
+- `tetris_ui_config.py` 负责配置：布局常量、配色、字体路径和按键绑定。
+- `tetris_ui_helpers.py` 负责辅助：几何计算和一些无状态的界面工具函数。
+- `TetrisGame` 负责把事件循环、渲染和规则调度到一起。
+- 程序入口在 `main()`，最终由 `TetrisGame.run()` 启动主循环。
 
 ## 常见问题
 
 **1. 启动时报 `No module named 'pygame'`**
 
-说明你当前用来启动程序的 Python 解释器还没有装上依赖。用同一个解释器重新安装依赖即可：
+说明你当前用来启动程序的 Python 解释器还没有装上依赖。用同一个解释器重新安装依赖即可，例如：
 
 ```bash
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 ```
 
 **2. 启动时报找不到字体文件**
