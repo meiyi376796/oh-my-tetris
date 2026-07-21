@@ -11,9 +11,6 @@ from tetris_core import Action, BOARD_HEIGHT, BOARD_WIDTH, Color
 # Shared UI typing helpers.
 FontKey: TypeAlias = Literal["title", "score", "body"]
 FontMap: TypeAlias = dict[FontKey, pygame.font.Font]
-TextAlign: TypeAlias = Literal["left", "center", "right"]
-TextAnchor: TypeAlias = tuple[int, TextAlign]
-VerticalBand: TypeAlias = tuple[int, int]
 
 
 @dataclass(frozen=True)
@@ -21,14 +18,13 @@ class SpacingScale:
     sm: int = 8
     md: int = 13
     lg: int = 21
-    xl: int = 34
 
 
 @dataclass(frozen=True)
 class FontSizes:
-    title: int = 34
-    score: int = 21
-    body: int = 13
+    title: int = 26
+    score: int = 15
+    body: int = 12
 
 
 @dataclass(frozen=True)
@@ -51,34 +47,28 @@ CHICAGO_FONT_PATH = os.path.join(BASE_DIR, "CHICAGO.TTF")
 
 SPACING = SpacingScale()
 FONT_SIZES = FontSizes()
-SCREEN = ScreenConfig(width=600, height=800)
+SCREEN = ScreenConfig(width=420, height=740)
 
 GAME_LAYOUT = GameLayoutConfig(
-    grid_size=24,
+    grid_size=26,
     grid_width=BOARD_WIDTH,
     grid_height=BOARD_HEIGHT,
     cell_inset=2,
-    playfield_border_width=3,
+    playfield_border_width=1,
 )
 
-# UI overlay transparency levels.
-OVERLAY_ALPHA: int = 89
-PANEL_ALPHA: int = 144
+# Dim level applied to the playfield behind overlay text.
+OVERLAY_ALPHA: int = 150
 
-# CRT arcade monitor palette in the Game Boy LCD phosphor-green family.
+# Flat Game Boy LCD palette: one green phosphor field on a warm dark canvas.
 PALETTE: dict[str, Color] = {
-    "bg": (28, 28, 32),
-    "monitor": (32, 32, 38),
-    "monitor_light": (55, 55, 64),
-    "monitor_dark": (18, 18, 22),
-    "neon": (155, 188, 15),
-    "neon_dim": (100, 140, 10),
-    "screen_bg": (148, 181, 15),
-    "screen_light": (132, 165, 15),
-    "block_fill": (15, 56, 15),
+    "canvas": (23, 24, 21),
+    "lcd": (139, 172, 15),
+    "lcd_line": (124, 153, 21),
+    "lcd_dark": (15, 56, 15),
     "ghost": (48, 98, 48),
-    "text_dim": (105, 125, 20),
-    "overlay": (15, 56, 15),
+    "ink": (155, 188, 15),
+    "ink_dim": (92, 112, 26),
 }
 
 

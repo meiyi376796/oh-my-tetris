@@ -13,17 +13,13 @@ from tetris_ui_config import (
     FontMap,
     GAME_LAYOUT,
     OVERLAY_ALPHA,
-    PANEL_ALPHA,
     PALETTE,
     SCREEN,
     SPACING,
-    TextAnchor,
-    VerticalBand,
 )
 from tetris_ui_helpers import (
-    get_monitor_rect,
+    TITLE_CENTER_Y,
     get_playfield_rect,
-    get_screen_rect,
     get_status_bar_rect,
     get_visible_piece_positions,
     make_inset_rect,
@@ -81,14 +77,11 @@ class TetrisUI:
 
         self.window_focused: bool = True
 
-        self.monitor_rect: pygame.Rect = get_monitor_rect()
-        self.screen_rect: pygame.Rect = get_screen_rect()
-        self.status_bar_rect: pygame.Rect = get_status_bar_rect()
         self.playfield_rect: pygame.Rect = get_playfield_rect()
+        self.status_bar_rect: pygame.Rect = get_status_bar_rect()
 
         self.scanline_surface: pygame.Surface = self._make_scanline_surface()
-        self.vignette_surface: pygame.Surface = self._make_vignette_surface()
-        self.glow_surface: pygame.Surface = self._make_glow_surface()
+        self.overlay_surface: pygame.Surface = self._make_overlay_surface()
 
     def _setup_fonts(self) -> None:
         font_path = self._get_font_path()
@@ -134,12 +127,9 @@ class TetrisUI:
             GAME_LAYOUT.cell_inset,
         )
 
-    def _draw_phosphor_block(self, rect: pygame.Rect) -> None:
-        pygame.draw.rect(self.screen, PALETTE["block_fill"], rect)
-
     def _draw_block(self, x: int, y: int) -> None:
         rect = self._make_playfield_cell_rect(x, y)
-        self._draw_phosphor_block(rect)
+        pygame.draw.rect(self.screen, PALETTE["lcd_dark"], rect)
 
     def _draw_ghost_block(self, x: int, y: int) -> None:
         rect = self._make_playfield_cell_rect(x, y)
@@ -171,151 +161,85 @@ class TetrisUI:
             cursor_x += glyph.get_width() + tracking
         return surface
 
-    def _blit_surface_in_band(
-        self,
-        surface: pygame.Surface,
-        anchor: TextAnchor,
-        band: VerticalBand,
-        target_surface: pygame.Surface | None = None,
-    ) -> pygame.Rect:
-        x, align = anchor
-        top, height = band
-        target = self.screen if target_surface is None else target_surface
-        rect = surface.get_rect()
-        if align == "center":
-            rect.centerx = x
-        elif align == "right":
-            rect.right = x
-        else:
-            rect.x = x
-        rect.y = top + max(0, (height - surface.get_height()) // 2)
-        target.blit(surface, rect)
-        return rect
-
-    # CRT arcade monitor shell drawing.
     def _draw_background(self) -> None:
-        self.screen.fill(PALETTE["bg"])
-
-    def _make_glow_surface(self) -> pygame.Surface:
-        pad = SPACING.lg
-        size = (
-            self.monitor_rect.width + pad * 2,
-            self.monitor_rect.height + pad * 2,
-        )
-        surface = pygame.Surface(size, pygame.SRCALPHA)
-        for i in range(8, 0, -1):
-            t = i / 8
-            alpha = int(21 * t)
-            rect = pygame.Rect(
-                pad - i * 2,
-                pad - i * 2,
-                size[0] - (pad - i * 2) * 2,
-                size[1] - (pad - i * 2) * 2,
-            )
-            pygame.draw.rect(
-                surface,
-                (*PALETTE["neon"], alpha),
-                rect,
-                border_radius=0,
-            )
-        return surface
-
-    def _draw_monitor_glow(self) -> None:
-        glow_rect = self.glow_surface.get_rect(center=self.monitor_rect.center)
-        self.screen.blit(self.glow_surface, glow_rect)
-
-    def _draw_monitor_frame(self) -> None:
-        # Outer frame body.
-        pygame.draw.rect(
-            self.screen,
-            PALETTE["monitor_dark"],
-            self.monitor_rect,
-            border_radius=0,
-        )
-        inner = self.monitor_rect.inflate(-13, -13)
-        pygame.draw.rect(
-            self.screen,
-            PALETTE["monitor"],
-            inner,
-            border_radius=0,
-        )
-        # Inner bevel.
-        pygame.draw.rect(
-            self.screen,
-            PALETTE["monitor_light"],
-            inner,
-            width=3,
-            border_radius=0,
-        )
-        # Decorative screws.
-        screw_offset = SPACING.lg
-        corners = [
-            (self.monitor_rect.left + screw_offset, self.monitor_rect.top + screw_offset),
-            (self.monitor_rect.right - screw_offset, self.monitor_rect.top + screw_offset),
-            (self.monitor_rect.left + screw_offset, self.monitor_rect.bottom - screw_offset),
-            (self.monitor_rect.right - screw_offset, self.monitor_rect.bottom - screw_offset),
-        ]
-        for x, y in corners:
-            pygame.draw.circle(self.screen, PALETTE["monitor_light"], (x, y), 5)
-            pygame.draw.circle(self.screen, PALETTE["monitor_dark"], (x, y), 5, 3)
+        self.screen.fill(PALETTE["canvas"])
 
     def _make_scanline_surface(self) -> pygame.Surface:
-        surface = pygame.Surface(self.screen_rect.size, pygame.SRCALPHA)
-        dark = (0, 0, 0)
-        for y in range(0, self.screen_rect.height, 2):
+        surface = pygame.Surface(self.playfield_rect.size, pygame.SRCALPHA)
+        for y in range(0, self.playfield_rect.height, 2):
             pygame.draw.line(
                 surface,
-                (*dark, 8),
+                (0, 0, 0, 8),
                 (0, y),
-                (self.screen_rect.width, y),
+                (self.playfield_rect.width, y),
                 1,
             )
         return surface
 
-    def _make_vignette_surface(self) -> pygame.Surface:
-        surface = pygame.Surface(self.screen_rect.size, pygame.SRCALPHA)
-        cx, cy = self.screen_rect.width // 2, self.screen_rect.height // 2
-        max_dist = (cx ** 2 + cy ** 2) ** 0.5
-        for y in range(self.screen_rect.height):
-            for x in range(self.screen_rect.width):
-                dist = ((x - cx) ** 2 + (y - cy) ** 2) ** 0.5
-                t = dist / max_dist
-                alpha = int(34 * (t ** 2))
-                surface.set_at((x, y), (0, 0, 0, alpha))
+    def _make_overlay_surface(self) -> pygame.Surface:
+        surface = pygame.Surface(self.playfield_rect.size, pygame.SRCALPHA)
+        surface.fill((*PALETTE["lcd_dark"], OVERLAY_ALPHA))
         return surface
 
-    # In-screen HUD.
-    def _draw_status_bar(self) -> None:
-        score_surface = self._render_text_surface(
-            f"{self.score:06d}", "score", PALETTE["text_dim"]
+    # Title flanked by hairline rules, like old handheld silkscreen.
+    def _draw_title(self) -> None:
+        title_surface = self._render_text_surface(
+            "TETRIS", "title", PALETTE["ink"], tracking=10
         )
-        self._blit_surface_in_band(
-            score_surface,
-            (self.status_bar_rect.x + SPACING.md, "left"),
-            (self.status_bar_rect.y, self.status_bar_rect.height),
-        )
+        center_x = self.screen.get_rect().centerx
+        title_rect = title_surface.get_rect(center=(center_x, TITLE_CENTER_Y))
+        self.screen.blit(title_surface, title_rect)
 
-        stats_surface = self._render_text_surface(
-            f"LINES {self.lines:03d}  LEVEL {self.level:02d}",
-            "body",
-            PALETTE["text_dim"],
+        rule_y = title_rect.centery
+        rule_inset = self.playfield_rect.x // 2
+        gap = SPACING.md
+        for start_x, end_x in (
+            (rule_inset, title_rect.left - gap),
+            (title_rect.right + gap, SCREEN.width - rule_inset),
+        ):
+            pygame.draw.line(
+                self.screen,
+                PALETTE["ink_dim"],
+                (start_x, rule_y),
+                (end_x, rule_y),
+                1,
+            )
+
+    # Status line: dim labels, bright values, centered over the playfield.
+    def _draw_status_bar(self) -> None:
+        segments = (
+            ("SCORE ", PALETTE["ink_dim"]),
+            (f"{self.score:06d}", PALETTE["ink"]),
+            ("   LINES ", PALETTE["ink_dim"]),
+            (f"{self.lines:03d}", PALETTE["ink"]),
+            ("   LEVEL ", PALETTE["ink_dim"]),
+            (f"{self.level:02d}", PALETTE["ink"]),
         )
-        self._blit_surface_in_band(
-            stats_surface,
-            (self.status_bar_rect.right - SPACING.md, "right"),
-            (self.status_bar_rect.y, self.status_bar_rect.height),
-        )
+        surfaces = [
+            self._render_text_surface(text, "score", color)
+            for text, color in segments
+        ]
+        total_width = sum(surface.get_width() for surface in surfaces)
+
+        cursor_x = self.screen.get_rect().centerx - total_width // 2
+        for surface in surfaces:
+            rect = surface.get_rect()
+            rect.x = cursor_x
+            rect.y = self.status_bar_rect.y + max(
+                0, (self.status_bar_rect.height - surface.get_height()) // 2
+            )
+            self.screen.blit(surface, rect)
+            cursor_x = rect.right
 
     def _draw_playfield(self) -> None:
-        pygame.draw.rect(self.screen, PALETTE["screen_bg"], self.playfield_rect)
+        pygame.draw.rect(self.screen, PALETTE["lcd"], self.playfield_rect)
 
-        # Grid lines.
-        grid_color = PALETTE["screen_light"]
+        # Grid hairlines.
         for x in range(1, GAME_LAYOUT.grid_width):
             grid_line_x = self.playfield_rect.x + x * GAME_LAYOUT.grid_size
             pygame.draw.line(
                 self.screen,
-                grid_color,
+                PALETTE["lcd_line"],
                 (grid_line_x, self.playfield_rect.y),
                 (grid_line_x, self.playfield_rect.bottom - 1),
                 1,
@@ -324,7 +248,7 @@ class TetrisUI:
             grid_line_y = self.playfield_rect.y + y * GAME_LAYOUT.grid_size
             pygame.draw.line(
                 self.screen,
-                grid_color,
+                PALETTE["lcd_line"],
                 (self.playfield_rect.x, grid_line_y),
                 (self.playfield_rect.right - 1, grid_line_y),
                 1,
@@ -351,25 +275,26 @@ class TetrisUI:
             for x, y in get_visible_piece_positions(current_piece):
                 self._draw_block(x, y)
 
-        # Playfield border (drawn outside the playfield so it doesn't cover blocks).
-        outer_border = self.playfield_rect.inflate(
+        # Single hairline frame just outside the playfield.
+        frame = self.playfield_rect.inflate(
             GAME_LAYOUT.playfield_border_width * 2,
             GAME_LAYOUT.playfield_border_width * 2,
         )
         pygame.draw.rect(
             self.screen,
-            PALETTE["screen_light"],
-            outer_border,
+            PALETTE["ink_dim"],
+            frame,
             GAME_LAYOUT.playfield_border_width,
         )
 
-    def _draw_overlay(self) -> None:
+    def _draw_overlay_dim(self) -> None:
         if self.state == GameState.PLAYING:
             return
+        self.screen.blit(self.overlay_surface, self.playfield_rect.topleft)
 
-        overlay = pygame.Surface(self.playfield_rect.size, pygame.SRCALPHA)
-        overlay.fill((*PALETTE["overlay"], OVERLAY_ALPHA))
-        self.screen.blit(overlay, self.playfield_rect.topleft)
+    def _draw_overlay_text(self) -> None:
+        if self.state == GameState.PLAYING:
+            return
 
         if self.state == GameState.START:
             main_text = "WELCOME"
@@ -382,44 +307,20 @@ class TetrisUI:
             sub_text = "Press R to restart"
 
         main_surface = self._render_text_surface(
-            main_text, "title", PALETTE["screen_bg"]
+            main_text, "title", PALETTE["ink"], tracking=6
         )
         sub_surface = self._render_text_surface(
-            sub_text, "body", PALETTE["screen_bg"]
+            sub_text, "body", PALETTE["ink"]
         )
 
         center_x = self.playfield_rect.centerx
         center_y = self.playfield_rect.centery
-        main_rect = main_surface.get_rect(center=(center_x, center_y - SPACING.md))
-        sub_rect = sub_surface.get_rect(center=(center_x, center_y + SPACING.xl))
-
-        # Dark horizontal band behind the text, spanning the full playfield.
-        panel_rect = main_rect.union(sub_rect).inflate(0, SPACING.xl)
-        panel_rect.width = self.playfield_rect.width
-        panel_rect.centerx = self.playfield_rect.centerx
-        panel = pygame.Surface(panel_rect.size, pygame.SRCALPHA)
-        panel.fill((*PALETTE["block_fill"], PANEL_ALPHA))
-        self.screen.blit(panel, panel_rect.topleft)
-
+        main_rect = main_surface.get_rect(center=(center_x, center_y - SPACING.sm))
+        sub_rect = sub_surface.get_rect(center=(center_x, center_y + SPACING.lg))
         self.screen.blit(main_surface, main_rect)
         self.screen.blit(sub_surface, sub_rect)
 
-    # Title and key hints.
-    def _draw_window_title(self) -> None:
-        title_surface = self._render_text_surface("TETRIS", "title", PALETTE["neon"])
-        title_rect = title_surface.get_rect(centerx=self.screen.get_rect().centerx)
-        title_rect.y = max(0, (self.monitor_rect.top - title_rect.height) // 2)
-        # Soft neon halo.
-        halo = self._render_text_surface("TETRIS", "title", PALETTE["neon_dim"])
-        halo = pygame.transform.scale(
-            halo,
-            (int(halo.get_width() * 1.125), int(halo.get_height() * 1.125)),
-        )
-        halo.set_alpha(89)
-        halo_rect = halo.get_rect(center=title_rect.center)
-        self.screen.blit(halo, halo_rect)
-        self.screen.blit(title_surface, title_rect)
-
+    # Key hints.
     def _draw_key_hints(self) -> None:
         gameplay_actions = {
             Action.MOVE_LEFT, Action.MOVE_RIGHT, Action.ROTATE,
@@ -432,22 +333,20 @@ class TetrisUI:
             "    ".join(f"{b.key_label}  {b.help_text}" for b in gameplay_bindings),
             "    ".join(f"{b.key_label}  {b.help_text}" for b in meta_bindings),
         )
-        y = self.monitor_rect.bottom + SPACING.lg
+        y = self.playfield_rect.bottom + SPACING.lg
         for line in hints:
-            surface = self._render_text_surface(line, "body", PALETTE["text_dim"])
+            surface = self._render_text_surface(line, "body", PALETTE["ink_dim"])
             rect = surface.get_rect(centerx=self.screen.get_rect().centerx, y=y)
             self.screen.blit(surface, rect)
             y += surface.get_height() + SPACING.sm
 
     def draw(self) -> None:
         self._draw_background()
-        self._draw_window_title()
-        self._draw_monitor_glow()
-        self._draw_monitor_frame()
+        self._draw_title()
         self._draw_status_bar()
         self._draw_playfield()
-        self.screen.blit(self.scanline_surface, self.screen_rect.topleft)
-        self.screen.blit(self.vignette_surface, self.screen_rect.topleft)
-        self._draw_overlay()
+        self._draw_overlay_dim()
+        self.screen.blit(self.scanline_surface, self.playfield_rect.topleft)
+        self._draw_overlay_text()
         self._draw_key_hints()
         pygame.display.flip()

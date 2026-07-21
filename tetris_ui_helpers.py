@@ -5,49 +5,31 @@ import pygame
 from tetris_core import Position, Tetromino
 from tetris_ui_config import (
     GAME_LAYOUT,
-    SPACING,
+    SCREEN,
 )
 
-# CRT arcade monitor layout.
-MONITOR_RECT = pygame.Rect(100, 80, 400, 640)
-
-_SCREEN_MARGIN = 55
-_PLAYFIELD_TOP_OFFSET = 25
-
-SCREEN_RECT = pygame.Rect(
-    MONITOR_RECT.x + _SCREEN_MARGIN,
-    MONITOR_RECT.y + _SCREEN_MARGIN,
-    MONITOR_RECT.width - _SCREEN_MARGIN * 2,
-    MONITOR_RECT.height - _SCREEN_MARGIN * 2,
-)
-
-STATUS_BAR_RECT = pygame.Rect(
-    SCREEN_RECT.x,
-    MONITOR_RECT.y + SPACING.lg,
-    SCREEN_RECT.width,
-    SPACING.xl,
-)
-
-
-def get_monitor_rect() -> pygame.Rect:
-    return MONITOR_RECT.copy()
-
-
-def get_screen_rect() -> pygame.Rect:
-    return SCREEN_RECT.copy()
-
-
-def get_status_bar_rect() -> pygame.Rect:
-    return STATUS_BAR_RECT.copy()
+# Flat single-column layout: title, status line, playfield, key hints.
+TITLE_CENTER_Y = 52
+_PLAYFIELD_TOP = 130
+_STATUS_BAR_HEIGHT = 26
+_STATUS_BAR_GAP = 12
 
 
 def get_playfield_rect() -> pygame.Rect:
-    screen = get_screen_rect()
     width = GAME_LAYOUT.grid_width * GAME_LAYOUT.grid_size
     height = GAME_LAYOUT.grid_height * GAME_LAYOUT.grid_size
-    x = screen.x + (screen.width - width) // 2
-    y = screen.y + _PLAYFIELD_TOP_OFFSET
-    return pygame.Rect(x, y, width, height)
+    x = (SCREEN.width - width) // 2
+    return pygame.Rect(x, _PLAYFIELD_TOP, width, height)
+
+
+def get_status_bar_rect() -> pygame.Rect:
+    playfield = get_playfield_rect()
+    return pygame.Rect(
+        playfield.x,
+        playfield.y - _STATUS_BAR_HEIGHT - _STATUS_BAR_GAP,
+        playfield.width,
+        _STATUS_BAR_HEIGHT,
+    )
 
 
 def make_inset_rect(x: int, y: int, size: int, inset: int) -> pygame.Rect:
