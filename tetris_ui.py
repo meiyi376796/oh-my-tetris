@@ -1,12 +1,13 @@
-"""Pygame UI shell, layout, and rendering helpers for the Tetris runtime."""
+"""Pygame UI window, layout, and rendering helpers for the Tetris runtime."""
 
 import os
 
 import pygame
 
-from tetris_core import Action, Color, GameState, Grid, Tetromino
+from tetris_core import GameState, Grid, Tetromino
 from tetris_ui_config import (
     CHICAGO_FONT_PATH,
+    Color,
     CONTROL_BINDINGS,
     FONT_SIZES,
     FontKey,
@@ -27,7 +28,7 @@ from tetris_ui_helpers import (
 
 
 class TetrisUI:
-    """Shared Pygame window shell, layout state, and rendering helpers."""
+    """Shared Pygame window, layout state, and rendering helpers."""
 
     # Gameplay host hooks.
     @property
@@ -56,6 +57,14 @@ class TetrisUI:
 
     @property
     def current_piece(self) -> Tetromino | None:
+        raise NotImplementedError
+
+    @property
+    def clearing_rows(self) -> list[int]:
+        raise NotImplementedError
+
+    @property
+    def line_clear_step(self) -> int:
         raise NotImplementedError
 
     def _reset_input_state(self) -> None:
@@ -209,11 +218,11 @@ class TetrisUI:
     def _draw_status_bar(self) -> None:
         segments = (
             ("SCORE ", PALETTE["ink_dim"]),
-            (f"{self.score:06d}", PALETTE["ink"]),
+            (f"{self.score:08d}", PALETTE["ink"]),
             ("   LINES ", PALETTE["ink_dim"]),
-            (f"{self.lines:03d}", PALETTE["ink"]),
+            (f"{self.lines:04d}", PALETTE["ink"]),
             ("   LEVEL ", PALETTE["ink_dim"]),
-            (f"{self.level:02d}", PALETTE["ink"]),
+            (f"{self.level:03d}", PALETTE["ink"]),
         )
         surfaces = [
             self._render_text_surface(text, "score", color)
@@ -230,6 +239,14 @@ class TetrisUI:
             )
             self.screen.blit(surface, rect)
             cursor_x = rect.right
+
+    # NES line clear animation erases two columns per step, center outward.
+    def _is_cell_erased(self, x: int, y: int, clearing_rows: set[int]) -> bool:
+        step = self.line_clear_step
+        if step <= 0 or y not in clearing_rows:
+            return False
+        center_left = GAME_LAYOUT.grid_width // 2 - 1
+        return center_left - (step - 1) <= x <= center_left + step
 
     def _draw_playfield(self) -> None:
         pygame.draw.rect(self.screen, PALETTE["lcd"], self.playfield_rect)
@@ -255,19 +272,17 @@ class TetrisUI:
             )
 
         # Locked blocks.
+        clearing_rows = set(self.clearing_rows)
         for y in range(GAME_LAYOUT.grid_height):
             for x in range(GAME_LAYOUT.grid_width):
-                if self.grid[y][x]:
+                if self.grid[y][x] and not self._is_cell_erased(x, y, clearing_rows):
                     self._draw_block(x, y)
 
         # Ghost piece.
         if self.state == GameState.PLAYING and self.current_piece:
-            try:
-                shadow = self._get_shadow_piece()
-                for x, y in get_visible_piece_positions(shadow):
-                    self._draw_ghost_block(x, y)
-            except RuntimeError:
-                pass
+            shadow = self._get_shadow_piece()
+            for x, y in get_visible_piece_positions(shadow):
+                self._draw_ghost_block(x, y)
 
         # Current piece.
         current_piece = self.current_piece
@@ -322,16 +337,9 @@ class TetrisUI:
 
     # Key hints.
     def _draw_key_hints(self) -> None:
-        gameplay_actions = {
-            Action.MOVE_LEFT, Action.MOVE_RIGHT, Action.ROTATE,
-            Action.SOFT_DROP, Action.HARD_DROP,
-        }
-        gameplay_bindings = [b for b in CONTROL_BINDINGS if b.action in gameplay_actions]
-        meta_bindings = [b for b in CONTROL_BINDINGS if b.action not in gameplay_actions]
-
-        hints = (
-            "    ".join(f"{b.key_label}  {b.help_text}" for b in gameplay_bindings),
-            "    ".join(f"{b.key_label}  {b.help_text}" for b in meta_bindings),
+        hints = tuple(
+            "    ".join(f"{b.key_label}  {b.help_text}" for b in CONTROL_BINDINGS[i:i + 4])
+            for i in range(0, len(CONTROL_BINDINGS), 4)
         )
         y = self.playfield_rect.bottom + SPACING.lg
         for line in hints:

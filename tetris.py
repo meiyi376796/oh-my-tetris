@@ -1,4 +1,4 @@
-"""Pygame runtime loop and entry point for the split Tetris runtime."""
+"""Pygame runtime loop and entry point for the Tetris runtime."""
 
 import sys
 
@@ -29,7 +29,6 @@ class TetrisGame(TetrisUI):
             grid_height=GAME_LAYOUT.grid_height,
             timing=TIMING,
         )
-        self.engine.reset_board_state()
         self.state = GameState.START
 
     @property
@@ -60,17 +59,19 @@ class TetrisGame(TetrisUI):
     def current_piece(self) -> Tetromino | None:
         return self.engine.current_piece
 
-    def _reset_game(self) -> None:
-        self.engine.reset_game()
+    @property
+    def clearing_rows(self) -> list[int]:
+        return self.engine.clearing_rows
+
+    @property
+    def line_clear_step(self) -> int:
+        return self.engine.line_clear_step
 
     def _reset_input_state(self) -> None:
         self.engine.reset_input_state()
 
     def _get_shadow_piece(self) -> Tetromino:
         return self.engine.get_shadow_piece()
-
-    def _toggle_pause(self) -> None:
-        self.engine.toggle_pause()
 
     def _dispatch_event(self, event) -> None:
         if event.type == pygame.QUIT:
@@ -86,18 +87,16 @@ class TetrisGame(TetrisUI):
 
     def _handle_keydown(self, key: int) -> None:
         if self.state == GameState.START:
-            self._reset_game()
+            self.engine.reset_game()
             return
 
         action = ACTION_BY_KEY.get(key)
         if action is None:
             return
         if action == Action.RESTART:
-            self._reset_game()
+            self.engine.reset_game()
         elif action == Action.PAUSE_RESUME:
-            self._toggle_pause()
-        elif action == Action.HARD_DROP and self.state == GameState.PLAYING:
-            self.engine.handle_piece_action(action)
+            self.engine.toggle_pause()
         elif self.state == GameState.PLAYING and is_piece_action(action):
             self.engine.handle_piece_action(action)
 
