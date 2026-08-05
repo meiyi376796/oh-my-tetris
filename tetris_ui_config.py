@@ -6,9 +6,10 @@ from typing import Literal, TypeAlias
 
 import pygame
 
-from tetris_core import Action, BOARD_HEIGHT, BOARD_WIDTH, Color
+from tetris_core import Action, BOARD_HEIGHT, BOARD_WIDTH
 
 # Shared UI typing helpers.
+Color: TypeAlias = tuple[int, int, int]
 FontKey: TypeAlias = Literal["title", "score", "body"]
 FontMap: TypeAlias = dict[FontKey, pygame.font.Font]
 
@@ -85,8 +86,9 @@ class ControlBinding:
 CONTROL_BINDINGS: tuple[ControlBinding, ...] = (
     ControlBinding(Action.MOVE_LEFT, pygame.K_a, "A", "Left"),
     ControlBinding(Action.MOVE_RIGHT, pygame.K_d, "D", "Right"),
+    ControlBinding(Action.ROTATE_CCW, pygame.K_q, "Q", "CCW"),
     ControlBinding(Action.ROTATE, pygame.K_w, "W", "Rotate"),
-    ControlBinding(Action.SOFT_DROP, pygame.K_s, "S", "Drop"),
+    ControlBinding(Action.SOFT_DROP, pygame.K_s, "S", "Soft"),
     ControlBinding(Action.HARD_DROP, pygame.K_SPACE, "Space", "Hard"),
     ControlBinding(Action.PAUSE_RESUME, pygame.K_p, "P", "Pause"),
     ControlBinding(Action.RESTART, pygame.K_r, "R", "Reset"),

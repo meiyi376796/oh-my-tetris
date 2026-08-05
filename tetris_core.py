@@ -5,10 +5,8 @@ from dataclasses import dataclass
 from enum import Enum, IntEnum
 from typing import Literal, TypeAlias, TypeGuard
 
-Color: TypeAlias = tuple[int, int, int]
-CellValue: TypeAlias = int | Color
 Position: TypeAlias = tuple[int, int]
-Grid: TypeAlias = list[list[CellValue]]
+Grid: TypeAlias = list[list[int]]
 ShapeMatrix: TypeAlias = tuple[tuple[int, ...], ...]
 RotationSet: TypeAlias = tuple[ShapeMatrix, ...]
 KickTable: TypeAlias = tuple[Position, ...]
@@ -17,7 +15,6 @@ KickTable: TypeAlias = tuple[Position, ...]
 @dataclass(frozen=True)
 class TimingConfig:
     frame_ms: float
-    entry_delay_frames: int
     das_delay_frames: int
     arr_speed_frames: int
     soft_drop_repeat_frames: int
@@ -35,6 +32,7 @@ class Action(str, Enum):
     MOVE_LEFT = "move_left"
     MOVE_RIGHT = "move_right"
     ROTATE = "rotate"
+    ROTATE_CCW = "rotate_ccw"
     SOFT_DROP = "soft_drop"
     HARD_DROP = "hard_drop"
     PAUSE_RESUME = "pause_resume"
@@ -45,6 +43,7 @@ PieceAction: TypeAlias = Literal[
     Action.MOVE_LEFT,
     Action.MOVE_RIGHT,
     Action.ROTATE,
+    Action.ROTATE_CCW,
     Action.SOFT_DROP,
     Action.HARD_DROP,
 ]
@@ -72,6 +71,7 @@ def is_piece_action(action: Action | None) -> TypeGuard[PieceAction]:
         Action.MOVE_LEFT,
         Action.MOVE_RIGHT,
         Action.ROTATE,
+        Action.ROTATE_CCW,
         Action.SOFT_DROP,
         Action.HARD_DROP,
     }
@@ -90,9 +90,8 @@ BOARD_HEIGHT = 20
 
 TIMING = TimingConfig(
     frame_ms=1000 / 60,
-    entry_delay_frames=6,
-    das_delay_frames=10,
-    arr_speed_frames=2,
+    das_delay_frames=16,
+    arr_speed_frames=6,
     soft_drop_repeat_frames=2,
     lock_delay_frames=30,
 )
@@ -146,47 +145,48 @@ SHAPES: tuple[RotationSet, ...] = tuple(
     ]
 )
 
+# SRS wall kick data from tetris.wiki, converted to screen coordinates
+# (+y downward; every published y sign flipped). Row order: 0->R, R->0,
+# R->2, 2->R, 2->L, L->2, L->0, 0->L. Clockwise lookup: kicks[rotation * 2],
+# counterclockwise: kicks[(rotation * 2 - 1) % 8].
 JLSTZ_WALL_KICKS: tuple[KickTable, ...] = tuple(
     _freeze_kick_table(kick_table)
     for kick_table in [
-        [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
-        [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
-        [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
-        [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
-        [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
-        [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
         [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
         [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
+        [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
+        [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
+        [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
+        [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+        [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+        [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
     ]
 )
 
 I_WALL_KICKS: tuple[KickTable, ...] = tuple(
     _freeze_kick_table(kick_table)
     for kick_table in [
-        [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
-        [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
-        [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
-        [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]],
-        [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
-        [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
-        [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]],
-        [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
+        [[0, 0], [-2, 0], [1, 0], [-2, 1], [1, -2]],
+        [[0, 0], [2, 0], [-1, 0], [2, -1], [-1, 2]],
+        [[0, 0], [-1, 0], [2, 0], [-1, -2], [2, 1]],
+        [[0, 0], [1, 0], [-2, 0], [1, 2], [-2, -1]],
+        [[0, 0], [2, 0], [-1, 0], [2, -1], [-1, 2]],
+        [[0, 0], [-2, 0], [1, 0], [-2, 1], [1, -2]],
+        [[0, 0], [1, 0], [-2, 0], [1, 2], [-2, -1]],
+        [[0, 0], [-1, 0], [2, 0], [-1, -2], [2, 1]],
     ]
 )
 
-# Color palette for the seven tetrominoes — stored per-cell in the grid
-# but rendered in phosphor-green monochrome (Game Boy LCD aesthetic).
-COLORS: tuple[Color, ...] = (
-    (168, 85, 247),   # I
-    (147, 51, 234),   # O
-    (126, 34, 206),   # T
-    (192, 132, 252),  # L
-    (107, 33, 168),   # J
-    (216, 180, 254),  # S
-    (88, 28, 135),    # Z
-)
-
 SCORES: dict[int, int] = {1: 40, 2: 100, 3: 300, 4: 1200}
+
+# NES line clear: 5 animation steps, each advancing when the global frame
+# counter hits a multiple of 4, for a total delay of 17~20 frames.
+LINE_CLEAR_STEPS = 5
+LINE_CLEAR_STEP_FRAMES = 4
+
+# Guideline move-reset lock delay: at most 15 resets per piece.
+LOCK_DELAY_MAX_RESETS = 15
+
 FALL_FRAMES: tuple[int, ...] = (
     48,
     43,
@@ -229,7 +229,6 @@ class Tetromino:
         self.y: int = y
         self.shape_index: int = shape_index
         self.rotation: int = 0
-        self.color: Color = COLORS[shape_index]
 
     def get_shape_matrix(self, rotation: int | None = None) -> ShapeMatrix:
         return SHAPES[self.shape_index][
@@ -238,6 +237,9 @@ class Tetromino:
 
     def rotate_clockwise(self) -> int:
         return (self.rotation + 1) % 4
+
+    def rotate_counterclockwise(self) -> int:
+        return (self.rotation - 1) % 4
 
     def get_positions(
         self,
@@ -279,8 +281,12 @@ class GameplayEngine:
         self.state: GameState = GameState.PLAYING
 
         self.entry_delay_active: bool = False
-        self.entry_delay_ms: float = self._frames_to_ms(self.timing.entry_delay_frames)
+        self.entry_delay_ms: float = 0.0
         self.entry_delay_elapsed_ms: float = 0.0
+        self.frame_counter: int = 0
+        self.clearing_rows: list[int] = []
+        self.line_clear_active: bool = False
+        self.line_clear_step: int = 0
         self.das_delay_ms: float = self._frames_to_ms(self.timing.das_delay_frames)
         self.arr_interval_ms: float = self._frames_to_ms(self.timing.arr_speed_frames)
         self.soft_drop_interval_ms: float = self._frames_to_ms(
@@ -289,6 +295,7 @@ class GameplayEngine:
         self.lock_delay_ms: float = self._frames_to_ms(self.timing.lock_delay_frames)
         self.lock_delay_active: bool = False
         self.lock_delay_elapsed_ms: float = 0.0
+        self.lock_delay_resets: int = 0
         self.fall_interval_ms: float = 0.0
         self.gravity_elapsed_ms: float = 0.0
 
@@ -329,7 +336,8 @@ class GameplayEngine:
             if any(shape_matrix[y]):
                 bottom_row = y
                 break
-        x = self.grid_width // 2 - len(shape_matrix[0]) // 2
+        # SRS spawns 3-wide pieces rounded to the left of center.
+        x = (self.grid_width - len(shape_matrix[0])) // 2
         y = -bottom_row - 1
         return Tetromino(x, y, shape_index)
 
@@ -347,17 +355,22 @@ class GameplayEngine:
                 return False
         return True
 
-    def _rotate_current_piece(self) -> bool:
+    def _rotate_current_piece(self, counterclockwise: bool = False) -> bool:
         if self.current_piece is None:
             raise RuntimeError("Cannot rotate without an active piece.")
         original_rotation = self.current_piece.rotation
-        new_rotation = self.current_piece.rotate_clockwise()
+        if counterclockwise:
+            new_rotation = self.current_piece.rotate_counterclockwise()
+            kick_index = (original_rotation * 2 - 1) % 8
+        else:
+            new_rotation = self.current_piece.rotate_clockwise()
+            kick_index = original_rotation * 2
         if self.current_piece.shape_index == 1:
             kicks = [(0, 0)]
         elif self.current_piece.shape_index == 0:
-            kicks = I_WALL_KICKS[original_rotation * 2]
+            kicks = I_WALL_KICKS[kick_index]
         else:
-            kicks = JLSTZ_WALL_KICKS[original_rotation * 2]
+            kicks = JLSTZ_WALL_KICKS[kick_index]
         for dx, dy in kicks:
             if self._is_valid_move(self.current_piece, dx, dy, new_rotation):
                 self.current_piece.rotation = new_rotation
@@ -367,49 +380,80 @@ class GameplayEngine:
                 return True
         return False
 
+    # NES-style ARE: 10 frames when locking in the bottom two rows,
+    # plus 2 frames for every 4 rows higher, capped at 18.
+    def _get_entry_delay_frames(self, lock_row: int) -> int:
+        if lock_row >= self.grid_height - 2:
+            return 10
+        return min(18, 12 + 2 * ((self.grid_height - 3 - lock_row) // 4))
+
     def _lock_current_piece(self) -> None:
         if self.current_piece is None:
             raise RuntimeError("Cannot lock without an active piece.")
         positions = self.current_piece.get_positions()
+        lock_row = max((y for _, y in positions), default=0)
         topped_out = False
         for x, y in positions:
             if y < 0:
                 topped_out = True
                 continue
             if 0 <= y < self.grid_height:
-                self.grid[y][x] = self.current_piece.color
+                self.grid[y][x] = 1
         if topped_out:
             self.state = GameState.OVER
             return
-        self._clear_completed_lines()
         self.current_piece = None
-        self.entry_delay_active = True
-        self.entry_delay_elapsed_ms = 0.0
+        self.lock_delay_resets = 0
+        self.entry_delay_ms = self._frames_to_ms(
+            self._get_entry_delay_frames(lock_row)
+        )
         self.lock_delay_active = False
         self.lock_delay_elapsed_ms = 0.0
 
-    def _clear_completed_lines(self) -> None:
-        new_grid = [row for row in self.grid if not all(row)]
-        cleared = self.grid_height - len(new_grid)
+        cleared = [y for y, row in enumerate(self.grid) if all(row)]
         if cleared:
-            self.grid = [[0] * self.grid_width for _ in range(cleared)] + new_grid
-            self.lines += cleared
-            self.score += SCORES.get(cleared, 0) * (self.level + 1)
-            self.level = self.lines // 10
-            self.fall_interval_ms = self._get_fall_interval_ms()
+            self.clearing_rows = cleared
+            self.line_clear_active = True
+            self.line_clear_step = 0
+        else:
+            self.entry_delay_active = True
+            self.entry_delay_elapsed_ms = 0.0
+
+    def _collapse_cleared_rows(self) -> None:
+        cleared = len(self.clearing_rows)
+        clearing = set(self.clearing_rows)
+        remaining = [row for y, row in enumerate(self.grid) if y not in clearing]
+        self.grid = [[0] * self.grid_width for _ in range(cleared)] + remaining
+        self.lines += cleared
+        self.score += SCORES.get(cleared, 0) * (self.level + 1)
+        self.level = self.lines // 10
+        self.fall_interval_ms = self._get_fall_interval_ms()
+        self.clearing_rows = []
+        self.line_clear_active = False
+        self.entry_delay_active = True
+        self.entry_delay_elapsed_ms = 0.0
+
+    def _update_line_clear(self) -> None:
+        if self.frame_counter % LINE_CLEAR_STEP_FRAMES == 0:
+            self.line_clear_step += 1
+        if self.line_clear_step >= LINE_CLEAR_STEPS:
+            self._collapse_cleared_rows()
 
     def _reset_lock_delay(self) -> None:
+        if self.lock_delay_active:
+            if self.lock_delay_resets >= LOCK_DELAY_MAX_RESETS:
+                return
+            self.lock_delay_resets += 1
         self.lock_delay_active = False
         self.lock_delay_elapsed_ms = 0.0
         if self.current_piece and not self._is_valid_move(self.current_piece, dy=1):
             self._start_lock_delay()
 
-    def _start_lock_delay(self) -> bool:
+    def _start_lock_delay(self) -> None:
         if self.lock_delay_active:
-            return False
+            return
         self.lock_delay_active = True
         self.lock_delay_elapsed_ms = 0.0
-        return True
 
     def _move_current_piece(self, dx: int = 0, dy: int = 0) -> bool:
         if not self.current_piece or not self._is_valid_move(self.current_piece, dx, dy):
@@ -479,9 +523,9 @@ class GameplayEngine:
         while self.soft_drop_elapsed_ms >= self.soft_drop_interval_ms:
             self.soft_drop_elapsed_ms -= self.soft_drop_interval_ms
             if self._move_current_piece(dy=1):
+                self.score += 1
                 continue
-            if not self.lock_delay_active:
-                self._start_lock_delay()
+            self._start_lock_delay()
             self.soft_drop_elapsed_ms = 0.0
             break
 
@@ -521,6 +565,10 @@ class GameplayEngine:
         self.entry_delay_elapsed_ms = 0.0
         self.lock_delay_active = False
         self.lock_delay_elapsed_ms = 0.0
+        self.lock_delay_resets = 0
+        self.clearing_rows = []
+        self.line_clear_active = False
+        self.line_clear_step = 0
 
     def reset_input_state(self) -> None:
         self.left_held = False
@@ -553,7 +601,7 @@ class GameplayEngine:
         return shadow_piece
 
     def handle_piece_action(self, action: PieceAction) -> None:
-        if self.entry_delay_active:
+        if self.entry_delay_active or self.line_clear_active:
             return
         if action == Action.MOVE_LEFT:
             self._set_horizontal_input(-1, True)
@@ -563,6 +611,8 @@ class GameplayEngine:
             self._move_current_piece(dx=1)
         elif action == Action.ROTATE:
             self._rotate_current_piece()
+        elif action == Action.ROTATE_CCW:
+            self._rotate_current_piece(counterclockwise=True)
         elif action == Action.HARD_DROP:
             while self._move_current_piece(dy=1):
                 pass
@@ -570,6 +620,7 @@ class GameplayEngine:
         elif action == Action.SOFT_DROP:
             self.soft_drop_held = True
             if self._move_current_piece(dy=1):
+                self.score += 1
                 self.soft_drop_elapsed_ms = 0.0
 
     def handle_key_release(self, action: ReleaseAction) -> None:
@@ -589,6 +640,10 @@ class GameplayEngine:
 
     def update(self, delta_ms: float) -> None:
         if self.state != GameState.PLAYING:
+            return
+        self.frame_counter += 1
+        if self.line_clear_active:
+            self._update_line_clear()
             return
         if self._update_entry_delay(delta_ms):
             return
