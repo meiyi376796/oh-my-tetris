@@ -440,13 +440,16 @@ class GameplayEngine:
             self._collapse_cleared_rows()
 
     def _reset_lock_delay(self) -> None:
+        if self.current_piece and self._is_valid_move(self.current_piece, dy=1):
+            self.lock_delay_active = False
+            self.lock_delay_elapsed_ms = 0.0
+            return
         if self.lock_delay_active:
             if self.lock_delay_resets >= LOCK_DELAY_MAX_RESETS:
                 return
             self.lock_delay_resets += 1
-        self.lock_delay_active = False
-        self.lock_delay_elapsed_ms = 0.0
-        if self.current_piece and not self._is_valid_move(self.current_piece, dy=1):
+            self.lock_delay_elapsed_ms = 0.0
+        else:
             self._start_lock_delay()
 
     def _start_lock_delay(self) -> None:

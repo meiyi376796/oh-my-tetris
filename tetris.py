@@ -60,6 +60,10 @@ class TetrisGame(TetrisUI):
         return self.engine.current_piece
 
     @property
+    def next_piece(self) -> Tetromino | None:
+        return self.engine.next_piece
+
+    @property
     def clearing_rows(self) -> list[int]:
         return self.engine.clearing_rows
 
