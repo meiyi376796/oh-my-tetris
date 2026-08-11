@@ -8,27 +8,32 @@ from tetris_ui_config import (
     SCREEN,
 )
 
-# Flat single-column layout: title, status line, playfield, key hints.
-TITLE_CENTER_Y = 52
-_PLAYFIELD_TOP = 130
-_STATUS_BAR_HEIGHT = 26
-_STATUS_BAR_GAP = 12
+# Game Boy layout: centered title and key hints, playfield on the left,
+# right info column with four sections evenly spanning the board height.
+TITLE_CENTER_Y = 75
+_PLAYFIELD_LEFT = 50
+_PLAYFIELD_TOP = 112
+_INFO_COLUMN_GAP = 32
+NEXT_CELL_SIZE = GAME_LAYOUT.grid_size // 2
+NEXT_CELL_INSET = 1
+NEXT_BOX_PADDING = 10
+NEXT_BOX_SIZE = 4 * NEXT_CELL_SIZE + 2 * NEXT_BOX_PADDING
 
 
 def get_playfield_rect() -> pygame.Rect:
     width = GAME_LAYOUT.grid_width * GAME_LAYOUT.grid_size
     height = GAME_LAYOUT.grid_height * GAME_LAYOUT.grid_size
-    x = (SCREEN.width - width) // 2
-    return pygame.Rect(x, _PLAYFIELD_TOP, width, height)
+    return pygame.Rect(_PLAYFIELD_LEFT, _PLAYFIELD_TOP, width, height)
 
 
-def get_status_bar_rect() -> pygame.Rect:
+def get_info_column_rect() -> pygame.Rect:
     playfield = get_playfield_rect()
+    x = playfield.right + _INFO_COLUMN_GAP
     return pygame.Rect(
-        playfield.x,
-        playfield.y - _STATUS_BAR_HEIGHT - _STATUS_BAR_GAP,
-        playfield.width,
-        _STATUS_BAR_HEIGHT,
+        x,
+        playfield.y,
+        SCREEN.width - _PLAYFIELD_LEFT - x,
+        playfield.height,
     )
 
 
