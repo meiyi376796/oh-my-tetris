@@ -16,6 +16,7 @@ FontMap: TypeAlias = dict[FontKey, pygame.font.Font]
 
 @dataclass(frozen=True)
 class SpacingScale:
+    xs: int = 5
     sm: int = 8
     md: int = 13
     lg: int = 21
@@ -23,8 +24,8 @@ class SpacingScale:
 
 @dataclass(frozen=True)
 class FontSizes:
-    title: int = 26
-    score: int = 15
+    title: int = 28
+    score: int = 16
     body: int = 12
 
 
@@ -58,24 +59,21 @@ GAME_LAYOUT = GameLayoutConfig(
     playfield_border_width=1,
 )
 
-# Dim level applied to the playfield behind overlay text.
-OVERLAY_ALPHA: int = 150
+# Alpha levels: overlay dim, shell grain, LCD scanlines.
+OVERLAY_ALPHA: int = 153
+GRAIN_ALPHA: int = 5
+SCANLINE_ALPHA: int = 10
 
-# Flat Game Boy LCD palette: one green phosphor field on a warm dark canvas,
-# plus the lone red power LED beside the screen.
+# Game Boy LCD palette: all greens are the DMG's four tones
+# (#0f380f/#306230/#8bac0f/#9bbc0f) on a graphite shell, plus one red LED.
 PALETTE: dict[str, Color] = {
-    "canvas": (23, 24, 21),
-    "lcd": (139, 172, 15),
-    "lcd_line": (124, 153, 21),
-    "lcd_dark": (15, 56, 15),
-    "lcd_deep": (9, 38, 9),
-    "block_light": (41, 92, 39),
-    "ghost": (48, 98, 48),
-    "ink": (155, 188, 15),
-    "ink_dim": (92, 112, 26),
-    "shadow": (12, 13, 11),
+    "shell": (34, 34, 32),
+    "screen": (155, 188, 15),
+    "ink": (139, 172, 15),
+    "dim": (48, 98, 48),
+    "block": (15, 56, 15),
     "led_on": (198, 64, 44),
-    "led_off": (62, 34, 28),
+    "led_off": (62, 36, 30),
 }
 
 

@@ -8,10 +8,11 @@ from tetris_ui_config import (
     SCREEN,
 )
 
-# Game Boy layout: centered title and key hints, playfield on the left,
-# right info column with four sections evenly spanning the board height.
-TITLE_CENTER_Y = 75
-_PLAYFIELD_LEFT = 50
+# Game Boy layout.
+TITLE_CENTER_Y = 70
+_MARGIN = 50
+# Playfield sits one pixel inside the margin; its hairline frame is the outer edge.
+_PLAYFIELD_LEFT = _MARGIN + GAME_LAYOUT.playfield_border_width
 _PLAYFIELD_TOP = 112
 _INFO_COLUMN_GAP = 32
 NEXT_CELL_SIZE = GAME_LAYOUT.grid_size // 2
@@ -32,7 +33,7 @@ def get_info_column_rect() -> pygame.Rect:
     return pygame.Rect(
         x,
         playfield.y,
-        SCREEN.width - _PLAYFIELD_LEFT - x,
+        SCREEN.width - _MARGIN - x,
         playfield.height,
     )
 

@@ -13,8 +13,10 @@ from tetris_ui_config import (
     FontKey,
     FontMap,
     GAME_LAYOUT,
+    GRAIN_ALPHA,
     OVERLAY_ALPHA,
     PALETTE,
+    SCANLINE_ALPHA,
     SCREEN,
     SPACING,
 )
@@ -96,14 +98,7 @@ class TetrisUI:
         self.playfield_rect: pygame.Rect = get_playfield_rect()
         self.info_column_rect: pygame.Rect = get_info_column_rect()
 
-        self.canvas_texture: pygame.Surface = self._make_canvas_texture()
-        self.led_glow_surface: pygame.Surface = self._make_led_glow_surface()
-        self.playfield_shading: pygame.Surface = self._make_lcd_shading(
-            self.playfield_rect.size
-        )
-        self.next_shading: pygame.Surface = self._make_lcd_shading(
-            (NEXT_BOX_SIZE, NEXT_BOX_SIZE)
-        )
+        self.shell_texture: pygame.Surface = self._make_shell_texture()
         self.scanline_surface: pygame.Surface = self._make_scanline_surface(
             self.playfield_rect.size
         )
@@ -161,49 +156,18 @@ class TetrisUI:
             GAME_LAYOUT.cell_inset,
         )
 
-    # LCD cell with a 1px bevel: top/left highlight, bottom/right shadow.
     def _draw_lcd_cell(self, rect: pygame.Rect) -> None:
-        pygame.draw.rect(self.screen, PALETTE["lcd_dark"], rect)
-        light = PALETTE["block_light"]
-        deep = PALETTE["lcd_deep"]
-        pygame.draw.line(self.screen, light, rect.topleft, (rect.right - 1, rect.top))
-        pygame.draw.line(self.screen, light, rect.topleft, (rect.left, rect.bottom - 1))
-        pygame.draw.line(
-            self.screen, deep, (rect.left, rect.bottom - 1), (rect.right - 1, rect.bottom - 1)
-        )
-        pygame.draw.line(
-            self.screen, deep, (rect.right - 1, rect.top), (rect.right - 1, rect.bottom - 1)
-        )
+        pygame.draw.rect(self.screen, PALETTE["block"], rect)
 
     def _draw_block(self, x: int, y: int) -> None:
         self._draw_lcd_cell(self._make_playfield_cell_rect(x, y))
 
     def _draw_ghost_block(self, x: int, y: int) -> None:
         rect = self._make_playfield_cell_rect(x, y)
-        pygame.draw.rect(self.screen, PALETTE["ghost"], rect, 1)
+        pygame.draw.rect(self.screen, PALETTE["dim"], rect, 1)
 
-    # Text rendering. Letterpress adds a 1px darker offset, like silkscreen
-    # pressed into the shell; use it for text printed on the canvas.
+    # Text rendering.
     def _render_text_surface(
-        self,
-        text: str,
-        font_key: FontKey,
-        color: Color,
-        tracking: int = 0,
-        letterpress: bool = False,
-    ) -> pygame.Surface:
-        if not letterpress:
-            return self._render_plain_text(text, font_key, color, tracking)
-        surface = self._render_plain_text(text, font_key, color, tracking)
-        shadow = self._render_plain_text(text, font_key, PALETTE["shadow"], tracking)
-        combined = pygame.Surface(
-            (surface.get_width() + 1, surface.get_height() + 1), pygame.SRCALPHA
-        )
-        combined.blit(shadow, (1, 1))
-        combined.blit(surface, (0, 0))
-        return combined
-
-    def _render_plain_text(
         self,
         text: str,
         font_key: FontKey,
@@ -228,67 +192,39 @@ class TetrisUI:
             cursor_x += glyph.get_width() + tracking
         return surface
 
-    # Single hairline frame just outside a rect.
+    # Hairline frame just outside a rect.
     def _draw_hairline_frame(self, rect: pygame.Rect) -> None:
         width = GAME_LAYOUT.playfield_border_width
-        pygame.draw.rect(self.screen, PALETTE["ink_dim"], rect.inflate(width * 2, width * 2), width)
+        pygame.draw.rect(self.screen, PALETTE["dim"], rect.inflate(width * 2, width * 2), width)
 
     def _draw_background(self) -> None:
-        self.screen.fill(PALETTE["canvas"])
-        self.screen.blit(self.canvas_texture, (0, 0))
+        self.screen.fill(PALETTE["shell"])
+        self.screen.blit(self.shell_texture, (0, 0))
 
-    # Ordered-dither grain over the canvas, like the plastic shell.
-    def _make_canvas_texture(self) -> pygame.Surface:
+    # Ordered-dither grain over the shell.
+    def _make_shell_texture(self) -> pygame.Surface:
         surface = pygame.Surface((SCREEN.width, SCREEN.height), pygame.SRCALPHA)
         for y in range(0, SCREEN.height, 2):
             for x in range(0, SCREEN.width, 2):
                 if (x // 2 + y // 2) % 2 == 0:
-                    surface.set_at((x, y), (255, 255, 255, 3))
+                    surface.set_at((x, y), (255, 255, 255, GRAIN_ALPHA))
         return surface
 
-    # Power LED left of the playfield, like the DMG battery light:
-    # solid while playing, blinking while paused, dark otherwise.
+    # Power LED: solid while playing, blinking while paused, dark otherwise.
     def _draw_power_led(self) -> None:
         center = (self.playfield_rect.x // 2, self.playfield_rect.centery)
-        pygame.draw.circle(self.screen, PALETTE["shadow"], center, 4)
         lit = self.state == GameState.PLAYING
         if self.state == GameState.PAUSED:
             lit = (pygame.time.get_ticks() // 400) % 2 == 0
-        if lit:
-            self.screen.blit(self.led_glow_surface, (center[0] - 8, center[1] - 8))
         color = PALETTE["led_on"] if lit else PALETTE["led_off"]
         pygame.draw.circle(self.screen, color, center, 3)
-
-    # Faint halo around the lit power LED.
-    def _make_led_glow_surface(self) -> pygame.Surface:
-        surface = pygame.Surface((16, 16), pygame.SRCALPHA)
-        pygame.draw.circle(surface, (*PALETTE["led_on"], 40), (8, 8), 7)
-        return surface
-
-    # Recessed-screen shading: dark inner shadow along the top/left edges,
-    # faint light bounce along bottom/right. Light source is top-left.
-    def _make_lcd_shading(self, size: tuple[int, int]) -> pygame.Surface:
-        width, height = size
-        surface = pygame.Surface(size, pygame.SRCALPHA)
-        for i in range(3):
-            alpha = 42 - 12 * i
-            pygame.draw.line(surface, (0, 0, 0, alpha), (0, i), (width, i))
-            pygame.draw.line(surface, (0, 0, 0, alpha), (i, 0), (i, height))
-            bounce = 20 - 6 * i
-            pygame.draw.line(
-                surface, (255, 255, 255, bounce), (0, height - 1 - i), (width, height - 1 - i)
-            )
-            pygame.draw.line(
-                surface, (255, 255, 255, bounce), (width - 1 - i, 0), (width - 1 - i, height)
-            )
-        return surface
 
     def _make_scanline_surface(self, size: tuple[int, int]) -> pygame.Surface:
         surface = pygame.Surface(size, pygame.SRCALPHA)
         for y in range(0, size[1], 2):
             pygame.draw.line(
                 surface,
-                (0, 0, 0, 10),
+                (0, 0, 0, SCANLINE_ALPHA),
                 (0, y),
                 (size[0], y),
                 1,
@@ -297,28 +233,28 @@ class TetrisUI:
 
     def _make_overlay_surface(self, size: tuple[int, int]) -> pygame.Surface:
         surface = pygame.Surface(size, pygame.SRCALPHA)
-        surface.fill((*PALETTE["lcd_dark"], OVERLAY_ALPHA))
+        surface.fill((*PALETTE["block"], OVERLAY_ALPHA))
         return surface
 
-    # Title flanked by hairline rules, letterpressed like shell silkscreen.
+    # Title flanked by hairline rules.
     def _draw_title(self) -> None:
         center_x = self.screen.get_rect().centerx
         title_surface = self._render_text_surface(
-            "TETRIS", "title", PALETTE["ink"], tracking=10, letterpress=True
+            "TETRIS", "title", PALETTE["ink"], tracking=10
         )
         title_rect = title_surface.get_rect(center=(center_x, TITLE_CENTER_Y))
         self.screen.blit(title_surface, title_rect)
 
         rule_y = title_rect.centery
-        rule_inset = self.playfield_rect.x
+        rule_inset = self.playfield_rect.x - GAME_LAYOUT.playfield_border_width
         gap = SPACING.md
         for start_x, end_x in (
             (rule_inset, title_rect.left - gap),
-            (title_rect.right + gap, SCREEN.width - rule_inset),
+            (title_rect.right + gap, SCREEN.width - rule_inset - 1),
         ):
             pygame.draw.line(
                 self.screen,
-                PALETTE["ink_dim"],
+                PALETTE["dim"],
                 (start_x, rule_y),
                 (end_x, rule_y),
                 1,
@@ -326,17 +262,16 @@ class TetrisUI:
 
     def _compute_next_box_rect(self) -> pygame.Rect:
         column = self.info_column_rect
-        label = self._render_text_surface("NEXT", "body", PALETTE["ink_dim"], tracking=2)
+        label = self._render_text_surface("NEXT", "body", PALETTE["dim"], tracking=2)
         section_height = column.height // 4
-        block_height = label.get_height() + 8 + NEXT_BOX_SIZE
+        block_height = label.get_height() + SPACING.sm + NEXT_BOX_SIZE
         slot_top = column.y + 3 * section_height
         rect = pygame.Rect(0, 0, NEXT_BOX_SIZE, NEXT_BOX_SIZE)
         rect.centerx = column.centerx
-        rect.y = slot_top + (section_height - block_height) // 2 + label.get_height() + 8
+        rect.y = slot_top + (section_height - block_height) // 2 + label.get_height() + SPACING.sm
         return rect
 
-    # Right info column: four sections evenly spanning the board height,
-    # each block vertically centered in its own slot.
+    # Right info column: four sections, each block centered in its slot.
     def _draw_info_column(self) -> None:
         column = self.info_column_rect
         section_height = column.height // 4
@@ -352,14 +287,14 @@ class TetrisUI:
         )
         for index, (label, value) in enumerate(stats):
             label_surface = self._render_text_surface(
-                label, "body", PALETTE["ink_dim"], tracking=2, letterpress=True
+                label, "body", PALETTE["dim"], tracking=2
             )
             value_surface = self._render_text_surface(
-                value, "score", PALETTE["ink"], letterpress=True
+                value, "score", PALETTE["ink"]
             )
             y = block_top(
                 index,
-                label_surface.get_height() + 6 + value_surface.get_height(),
+                label_surface.get_height() + SPACING.xs + value_surface.get_height(),
             )
             self.screen.blit(
                 label_surface,
@@ -368,25 +303,23 @@ class TetrisUI:
             self.screen.blit(
                 value_surface,
                 value_surface.get_rect(
-                    centerx=column.centerx, y=y + label_surface.get_height() + 6
+                    centerx=column.centerx, y=y + label_surface.get_height() + SPACING.xs
                 ),
             )
 
         label_surface = self._render_text_surface(
-            "NEXT", "body", PALETTE["ink_dim"], tracking=2, letterpress=True
+            "NEXT", "body", PALETTE["dim"], tracking=2
         )
         box_rect = self._compute_next_box_rect()
         self.screen.blit(
             label_surface,
             label_surface.get_rect(
-                centerx=column.centerx, y=box_rect.y - 8 - label_surface.get_height()
+                centerx=column.centerx, y=box_rect.y - SPACING.sm - label_surface.get_height()
             ),
         )
 
-        # Miniature LCD: same phosphor field, dark cells, scanlines, and
-        # dimming as the playfield. The piece shows while a round is live
-        # (playing or paused); the screen dims whenever it is not playing.
-        pygame.draw.rect(self.screen, PALETTE["lcd"], box_rect)
+        # Miniature LCD: shows the piece while playing or paused; dimmed unless playing.
+        pygame.draw.rect(self.screen, PALETTE["screen"], box_rect)
 
         piece = self.next_piece
         if piece is not None and self.state in (GameState.PLAYING, GameState.PAUSED):
@@ -412,8 +345,6 @@ class TetrisUI:
                 )
                 self._draw_lcd_cell(rect)
 
-        self.screen.blit(self.next_shading, box_rect.topleft)
-
         if self.state != GameState.PLAYING:
             self.screen.blit(self.next_overlay_surface, box_rect.topleft)
         self.screen.blit(self.next_scanline_surface, box_rect.topleft)
@@ -428,14 +359,14 @@ class TetrisUI:
         return center_left - (step - 1) <= x <= center_left + step
 
     def _draw_playfield(self) -> None:
-        pygame.draw.rect(self.screen, PALETTE["lcd"], self.playfield_rect)
+        pygame.draw.rect(self.screen, PALETTE["screen"], self.playfield_rect)
 
         # Grid hairlines.
         for x in range(1, GAME_LAYOUT.grid_width):
             grid_line_x = self.playfield_rect.x + x * GAME_LAYOUT.grid_size
             pygame.draw.line(
                 self.screen,
-                PALETTE["lcd_line"],
+                PALETTE["ink"],
                 (grid_line_x, self.playfield_rect.y),
                 (grid_line_x, self.playfield_rect.bottom - 1),
                 1,
@@ -444,7 +375,7 @@ class TetrisUI:
             grid_line_y = self.playfield_rect.y + y * GAME_LAYOUT.grid_size
             pygame.draw.line(
                 self.screen,
-                PALETTE["lcd_line"],
+                PALETTE["ink"],
                 (self.playfield_rect.x, grid_line_y),
                 (self.playfield_rect.right - 1, grid_line_y),
                 1,
@@ -457,7 +388,7 @@ class TetrisUI:
                 if self.grid[y][x] and not self._is_cell_erased(x, y, clearing_rows):
                     self._draw_block(x, y)
 
-        # Ghost piece, visible whenever the round is live.
+        # Ghost piece.
         if self.state in (GameState.PLAYING, GameState.PAUSED) and self.current_piece:
             shadow = self._get_shadow_piece()
             for x, y in get_visible_piece_positions(shadow):
@@ -470,7 +401,6 @@ class TetrisUI:
                 self._draw_block(x, y)
 
         self._draw_hairline_frame(self.playfield_rect)
-        self.screen.blit(self.playfield_shading, self.playfield_rect.topleft)
 
     def _draw_overlay_dim(self) -> None:
         if self.state == GameState.PLAYING:
@@ -512,8 +442,7 @@ class TetrisUI:
                 self._render_text_surface(
                     f"{b.key_label}  {b.help_text}",
                     "body",
-                    PALETTE["ink_dim"],
-                    letterpress=True,
+                    PALETTE["dim"],
                 )
                 for b in CONTROL_BINDINGS[i:i + 4]
             )
