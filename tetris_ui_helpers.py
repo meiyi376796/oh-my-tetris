@@ -13,7 +13,7 @@ TITLE_CENTER_Y = 70
 _MARGIN = 50
 # Playfield sits one pixel inside the margin; its hairline frame is the outer edge.
 _PLAYFIELD_LEFT = _MARGIN + GAME_LAYOUT.playfield_border_width
-_PLAYFIELD_TOP = 112
+_PLAYFIELD_TOP = 111
 _INFO_COLUMN_GAP = 32
 NEXT_CELL_SIZE = GAME_LAYOUT.grid_size // 2
 NEXT_CELL_INSET = 1
@@ -22,8 +22,9 @@ NEXT_BOX_SIZE = 4 * NEXT_CELL_SIZE + 2 * NEXT_BOX_PADDING
 
 
 def get_playfield_rect() -> pygame.Rect:
-    width = GAME_LAYOUT.grid_width * GAME_LAYOUT.grid_size
-    height = GAME_LAYOUT.grid_height * GAME_LAYOUT.grid_size
+    # One extra pixel for the closing grid line on the right/bottom edge.
+    width = GAME_LAYOUT.grid_width * GAME_LAYOUT.grid_size + 1
+    height = GAME_LAYOUT.grid_height * GAME_LAYOUT.grid_size + 1
     return pygame.Rect(_PLAYFIELD_LEFT, _PLAYFIELD_TOP, width, height)
 
 
