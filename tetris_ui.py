@@ -149,10 +149,11 @@ class TetrisUI:
 
     # Primitive drawing helpers.
     def _make_playfield_cell_rect(self, x: int, y: int) -> pygame.Rect:
+        # Grid lines eat each cell's first pixel; inset within the rest.
         return make_inset_rect(
-            self.playfield_rect.x + x * GAME_LAYOUT.grid_size,
-            self.playfield_rect.y + y * GAME_LAYOUT.grid_size,
-            GAME_LAYOUT.grid_size,
+            self.playfield_rect.x + x * GAME_LAYOUT.grid_size + 1,
+            self.playfield_rect.y + y * GAME_LAYOUT.grid_size + 1,
+            GAME_LAYOUT.grid_size - 1,
             GAME_LAYOUT.cell_inset,
         )
 
@@ -281,9 +282,9 @@ class TetrisUI:
             return slot_top + (section_height - height) // 2
 
         stats = (
-            ("SCORE", f"{self.score:08d}"),
-            ("LINES", f"{self.lines:04d}"),
-            ("LEVEL", f"{self.level:03d}"),
+            ("SCORE", str(self.score)),
+            ("LINES", str(self.lines)),
+            ("LEVEL", str(self.level)),
         )
         for index, (label, value) in enumerate(stats):
             label_surface = self._render_text_surface(
@@ -361,8 +362,8 @@ class TetrisUI:
     def _draw_playfield(self) -> None:
         pygame.draw.rect(self.screen, PALETTE["screen"], self.playfield_rect)
 
-        # Grid hairlines.
-        for x in range(1, GAME_LAYOUT.grid_width):
+        # Grid hairlines, closing on all four edges so every cell is bounded.
+        for x in range(GAME_LAYOUT.grid_width + 1):
             grid_line_x = self.playfield_rect.x + x * GAME_LAYOUT.grid_size
             pygame.draw.line(
                 self.screen,
@@ -371,7 +372,7 @@ class TetrisUI:
                 (grid_line_x, self.playfield_rect.bottom - 1),
                 1,
             )
-        for y in range(1, GAME_LAYOUT.grid_height):
+        for y in range(GAME_LAYOUT.grid_height + 1):
             grid_line_y = self.playfield_rect.y + y * GAME_LAYOUT.grid_size
             pygame.draw.line(
                 self.screen,
