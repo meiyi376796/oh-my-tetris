@@ -31,6 +31,8 @@ from tetris_ui_helpers import (
     make_inset_rect,
 )
 
+FONT_SETUP_HINT = "Place CHICAGO.TTF in the project root or update CHICAGO_FONT_PATH."
+
 
 class TetrisUI:
     """Shared Pygame window, layout state, and rendering helpers."""
@@ -122,8 +124,7 @@ class TetrisUI:
             }
         except (OSError, RuntimeError) as font_error:
             raise RuntimeError(
-                f"Unable to load font at {font_path}. "
-                "Place CHICAGO.TTF in the project root or update CHICAGO_FONT_PATH."
+                f"Unable to load font at {font_path}. " + FONT_SETUP_HINT
             ) from font_error
 
     @staticmethod
@@ -131,8 +132,7 @@ class TetrisUI:
         if os.path.exists(CHICAGO_FONT_PATH):
             return CHICAGO_FONT_PATH
         raise RuntimeError(
-            f"Required font not found at {CHICAGO_FONT_PATH}. "
-            "Place CHICAGO.TTF in the project root or update CHICAGO_FONT_PATH."
+            f"Required font not found at {CHICAGO_FONT_PATH}. " + FONT_SETUP_HINT
         )
 
     # Focus handling.
